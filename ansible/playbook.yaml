@@ -1,0 +1,83 @@
+---
+- name: Install Docker and Deploy Containerized Web-App
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+      tags: installation
+
+    - name: Install required system packages
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: latest
+        update_cache: true
+      tags: installation
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      tags: installation
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+      tags: installation
+
+    - name: Update apt and install docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: latest
+        update_cache: true
+      tags: installation
+
+    - name: Add the user to the docker group
+      user:
+        name: '{{ item }}'
+        groups: docker
+        append: yes
+      loop:
+        - vagrant
+        - ubuntu
+      tags: installation
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      tags: always
+
+    - name: Pull the Docker image from Docker Hub
+      docker_image:
+        name: santu440/webapp-node
+        tag: 1.0.0
+        source: pull
+
+    - name: Run the Docker container
+      docker_container:
+        name: webapp-node
+        image: santu440/webapp-node:1.0.0
+        state: started
+        ports:
+          - "3000:3000"  # Adjust the ports as necessary
+
+    - name: Ensure the Docker container is running
+      shell: docker ps -q --filter "name=webapp-node"
+      register: docker_container_status
+
+    - name: Fail if the Docker container is not running
+      fail:
+        msg: "The Docker container is not running"
+      when: docker_container_status.stdout == ""
